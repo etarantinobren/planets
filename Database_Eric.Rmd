@@ -1,0 +1,93 @@
+---
+title: "Database"
+author: "Eric Tarantino"
+date: "May 13, 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries, warning=FALSE, message=FALSE}
+# load libraries
+library(tidyverse)
+library(lubridate)
+library("RSQLite")
+
+```
+
+
+```{r, importtidy, warning=FALSE, message=FALSE}
+# import data and select columns
+gaz_raw <- read_delim("~/BrenSchool/Computing/CA_Features_20180401/CA_Features_20180401.txt", "|", na = c("Unknown", "0", ""))
+gaz <- select(gaz_raw, id = FEATURE_ID, name = FEATURE_NAME, FEATURE_CLASS, STATE_ALPHA, COUNTY_NAME,PRIM_LAT_DEC, PRIM_LONG_DEC, SOURCE_LAT_DEC, SOURCE_LONG_DEC, ELEV_IN_M, MAP_NAME, DATE_CREATED, DATE_EDITED)
+# convert columns to appropriate type
+gaz$DATE_CREATED = as.Date(gaz$DATE_CREATED,"%m/%d/%y")
+gaz$DATE_EDITED = as.Date(gaz$DATE_EDITED,"%m/%d/%y")
+# delete rows where primary latitude or longitude are unknown and the feature is not in California
+gaz <- filter(gaz, STATE_ALPHA=="CA" & is.na(PRIM_LAT_DEC)==FALSE & is.na(PRIM_LONG_DEC)==FALSE) 
+
+#establish database connection to gaz.db
+con <- dbConnect(SQLite(), dbname="gaz.db")
+#copy gaz tibble to gaz.db
+copy_to(con, gaz, "gaz",
+  temporary = FALSE, overwrite = TRUE
+)
+
+```
+
+```{r}
+# create table with most-frequently-occuring feature name
+FeatureName <- dbGetQuery(con, "select Distinct name, count(FEATURE_CLASS) from gaz group by name order by -count(FEATURE_CLASS)")
+FeatureName
+
+# create table with least-frequently-occuring feature class
+FeatureClass <- dbGetQuery(con, "select Distinct FEATURE_CLASS, count(FEATURE_CLASS) from gaz group by FEATURE_CLASS order by count(FEATURE_CLASS)")
+FeatureClass
+
+# create table with average latitude and longitude of each county (approximate center point)
+LatLong <- dbGetQuery(con, "select Distinct COUNTY_NAME, avg(PRIM_LAT_DEC), avg(PRIM_LONG_DEC) from gaz where COUNTY_NAME IS NOT NULL group by COUNTY_NAME")
+LatLong
+```
+
+
+```{r, analyze, warning=FALSE, message=FALSE}
+# create table showing fractions of the total number of features in each county that are natural and man-made
+
+# create tibble of Feature_Class and manmade (m) or not (o)
+gazman <- unique(gaz$FEATURE_CLASS)
+man <- c("manmade", "natural","natural", "manmade","natural", "natural","manmade", "manmade","manmade", "natural","natural", "manmade","natural", "natural","natural", "manmade","manmade", "manmade","manmade", "natural","natural", "natural","natural", "manmade","natural", "natural","manmade", "manmade","natural", "natural","natural", "manmade","natural", "manmade","natural", "natural","natural", "natural","natural", "manmade","manmade", "natural","manmade", "natural","natural", "natural","natural", "manmade","natural", "manmade","manmade", "natural","natural", "manmade","manmade", "manmade","natural", "manmade","natural", "manmade","natural", "natural","manmade")
+gazman <-data.frame(gazman, man)
+x <- c("FEATURE_CLASS", "man")
+colnames(gazman) <- x
+gazman$man = as.factor(gazman$man)
+
+#copy tibble gazman to database
+copy_to(con, gazman, "gazman",
+  temporary = FALSE, overwrite = TRUE
+)
+
+#create table featureman by joining gaz and gazman
+featureman <- dbGetQuery(con, "select * FROM gaz Join gazman on gaz.FEATURE_CLASS=gazman.FEATURE_CLASS")
+#View(featureman)
+
+#copy featureman to gaz.db
+copy_to(con, featureman, "featureman",
+  temporary = FALSE, overwrite = TRUE
+)
+
+# create table showing fractions of the total number of features in each county that are natural and man-made
+FeatureTot <- dbGetQuery(con, "select Distinct COUNTY_NAME, 
+sum(case when man = 'manmade' then 1 else 0 end) *100 / count(*) as PercentManmade,  
+sum(case when man = 'natural' then 1 else 0 end) *100 / count(*) as PercentNatural 
+from featureman 
+where COUNTY_NAME IS NOT NULL 
+group by COUNTY_NAME")
+FeatureTot
+
+
+```
+
