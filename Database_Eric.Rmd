@@ -41,15 +41,15 @@ copy_to(con, gaz, "gaz",
 
 ```{r}
 # create table with most-frequently-occuring feature name
-FeatureName <- dbGetQuery(con, "select Distinct name, count(FEATURE_CLASS) from gaz group by name order by -count(FEATURE_CLASS)")
+FeatureName <- dbGetQuery(con, "select Distinct name, count(FEATURE_CLASS) from gaz group by name order by -count(FEATURE_CLASS) limit 10")
 FeatureName
 
 # create table with least-frequently-occuring feature class
-FeatureClass <- dbGetQuery(con, "select Distinct FEATURE_CLASS, count(FEATURE_CLASS) from gaz group by FEATURE_CLASS order by count(FEATURE_CLASS)")
+FeatureClass <- dbGetQuery(con, "select Distinct FEATURE_CLASS, count(FEATURE_CLASS) from gaz group by FEATURE_CLASS order by count(FEATURE_CLASS) limit 10")
 FeatureClass
 
 # create table with average latitude and longitude of each county (approximate center point)
-LatLong <- dbGetQuery(con, "select Distinct COUNTY_NAME, avg(PRIM_LAT_DEC), avg(PRIM_LONG_DEC) from gaz where COUNTY_NAME IS NOT NULL group by COUNTY_NAME")
+LatLong <- dbGetQuery(con, "select Distinct COUNTY_NAME, avg(PRIM_LAT_DEC), avg(PRIM_LONG_DEC) from gaz where COUNTY_NAME IS NOT NULL group by COUNTY_NAME limit 10")
 LatLong
 ```
 
@@ -85,7 +85,8 @@ sum(case when man = 'manmade' then 1 else 0 end) *100 / count(*) as PercentManma
 sum(case when man = 'natural' then 1 else 0 end) *100 / count(*) as PercentNatural 
 from featureman 
 where COUNTY_NAME IS NOT NULL 
-group by COUNTY_NAME")
+group by COUNTY_NAME
+limit 10")
 FeatureTot
 
 
