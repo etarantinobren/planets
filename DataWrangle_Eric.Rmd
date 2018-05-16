@@ -1,0 +1,96 @@
+---
+title: "DataWrangle"
+author: "Eric Tarantino"
+date: "April 27, 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries, warning=FALSE, message=FALSE}
+# load libraries
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+
+```
+
+
+```{r, importtidy, warning=FALSE, message=FALSE}
+# import data and select columns
+gaz_raw <- read_delim("~/Bren School/Computing/CA_Features_20180401/CA_Features_20180401.txt", "|", na = c("Unknown", "0", ""))
+gaz <- select(gaz_raw, id = FEATURE_ID, name = FEATURE_NAME, FEATURE_CLASS, STATE_ALPHA, COUNTY_NAME,PRIM_LAT_DEC, PRIM_LONG_DEC, SOURCE_LAT_DEC, SOURCE_LONG_DEC, ELEV_IN_M, MAP_NAME, DATE_CREATED, DATE_EDITED)
+# convert columns to appropriate type
+gaz$DATE_CREATED = as.Date(gaz$DATE_CREATED,"%m/%d/%y")
+gaz$DATE_EDITED = as.Date(gaz$DATE_EDITED,"%m/%d/%y")
+# delete rows where primary latitude or longitude are unknown and the feature is not in California
+gaz <- filter(gaz, STATE_ALPHA=="CA" & is.na(PRIM_LAT_DEC)==FALSE & is.na(PRIM_LONG_DEC)==FALSE) 
+# Write gaz to CSV ("|" as a delimiter)
+write_delim(gaz, "~/Bren School/Computing/gaz.csv", delim = "|")
+
+```
+
+```{r, analyze, warning=FALSE, message=FALSE}
+# create table with most-frequently-occuring feature name
+gazname <- gaz %>% 
+  count(name, sort=TRUE)%>% 
+  head(n=10) %>%
+  select(FeatureName = name, CountFeatureName = n)
+gazname
+
+# create table with least-frequently-occuring feature class
+gazclass <- gaz %>% count(FEATURE_CLASS, sort=TRUE) %>%
+  tail(n=10) %>%
+ select(FeatureClass = FEATURE_CLASS, CountFeatureClass = n)
+gazclass <- gazclass[order(gazclass$CountFeatureClass),]
+gazclass
+
+# find approximate center point of each county
+# find mean of latitude/longitude by county
+gazlat <- gaz %>% 
+  group_by(COUNTY_NAME) %>%
+  summarise(latitude = mean(PRIM_LAT_DEC))
+gazlong <- gaz %>% 
+  group_by(COUNTY_NAME) %>%
+  summarise(longitude = mean(PRIM_LONG_DEC))
+
+# merge latitude and longitude tables
+gazloc <- merge(gazlat,gazlong) %>%
+  head(10)
+gazloc
+
+# crete table showing fractions of the total number of features in each county that are natural and man-made
+# create tibble of Feature_Class and manmade (m) or not (o)
+gazman <- unique(gaz$FEATURE_CLASS)
+man <- c("manmade", "natural","natural", "manmade","natural", "natural","manmade", "manmade","manmade", "natural","natural", "manmade","natural", "natural","natural", "manmade","manmade", "manmade","manmade", "natural","natural", "natural","natural", "manmade","natural", "natural","manmade", "manmade","natural", "natural","natural", "manmade","natural", "manmade","natural", "natural","natural", "natural","natural", "manmade","manmade", "natural","manmade", "natural","natural", "natural","natural", "manmade","natural", "manmade","manmade", "natural","natural", "manmade","manmade", "manmade","natural", "manmade","natural", "manmade","natural", "natural","manmade")
+gazman <-data.frame(gazman, man)
+x <- c("FEATURE_CLASS", "man")
+colnames(gazman) <- x
+gazman$man = as.factor(gazman$man)
+
+# join above table with gaz 
+gazman <- left_join(gaz, gazman)
+
+# get counts of manmade and other
+gazman <- gazman %>% 
+  group_by(COUNTY_NAME) %>%
+  count(man)
+
+# calculate percentages of manmade and natural features
+county <- group_by(gazman, COUNTY_NAME) %>%
+  summarise(percentage = sum(n)) %>%
+  right_join(gazman) %>%
+  mutate(per = n/percentage) %>%
+  mutate(per = paste(round(per*100,digits=1),"%",sep="")) %>%
+  select(COUNTY_NAME, Percentage = per, Manmade = man) %>%
+  spread(key = Manmade, value = Percentage) %>%
+  head(n=10) 
+county
+
+
+```
+
