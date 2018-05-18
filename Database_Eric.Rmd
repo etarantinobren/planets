@@ -1,7 +1,7 @@
 ---
 title: "Database"
 author: "Eric Tarantino"
-date: "May 13, 2018"
+date: "May 18, 2018"
 output:
   html_document: default
   word_document: default
@@ -81,8 +81,8 @@ copy_to(con, featureman, "featureman",
 
 # create table showing fractions of the total number of features in each county that are natural and man-made
 FeatureTot <- dbGetQuery(con, "select Distinct COUNTY_NAME, 
-sum(case when man = 'manmade' then 1 else 0 end) *100 / count(*) as PercentManmade,  
-sum(case when man = 'natural' then 1 else 0 end) *100 / count(*) as PercentNatural 
+cast(sum(case when man = 'manmade' then 1 else 0 end) *100 as real)  / count(*) as PercentManmade,  
+cast(sum(case when man = 'natural' then 1 else 0 end) *100 as real) / count(*) as PercentNatural 
 from featureman 
 where COUNTY_NAME IS NOT NULL 
 group by COUNTY_NAME

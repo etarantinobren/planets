@@ -11,7 +11,7 @@
 
 <meta name="author" content="Eric Tarantino" />
 
-<meta name="date" content="2018-05-13" />
+<meta name="date" content="2018-05-18" />
 
 <title>Database</title>
 
@@ -119,7 +119,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Database</h1>
 <h4 class="author"><em>Eric Tarantino</em></h4>
-<h4 class="date"><em>May 13, 2018</em></h4>
+<h4 class="date"><em>May 18, 2018</em></h4>
 
 </div>
 
@@ -211,24 +211,24 @@ copy_to(con, featureman, &quot;featureman&quot;,
 
 # create table showing fractions of the total number of features in each county that are natural and man-made
 FeatureTot &lt;- dbGetQuery(con, &quot;select Distinct COUNTY_NAME, 
-sum(case when man = 'manmade' then 1 else 0 end) *100 / count(*) as PercentManmade,  
-sum(case when man = 'natural' then 1 else 0 end) *100 / count(*) as PercentNatural 
+cast(sum(case when man = 'manmade' then 1 else 0 end) *100 as real)  / count(*) as PercentManmade,  
+cast(sum(case when man = 'natural' then 1 else 0 end) *100 as real) / count(*) as PercentNatural 
 from featureman 
 where COUNTY_NAME IS NOT NULL 
 group by COUNTY_NAME
 limit 10&quot;)
 FeatureTot</code></pre>
 <pre><code>##     COUNTY_NAME PercentManmade PercentNatural
-## 1       Alameda             80             19
-## 2        Alpine             25             74
-## 3        Amador             57             42
-## 4         Butte             56             43
-## 5     Calaveras             58             41
-## 6        Colusa             37             62
-## 7  Contra Costa             71             28
-## 8     Del Norte             32             67
-## 9     El Dorado             42             57
-## 10       Fresno             46             53</code></pre>
+## 1       Alameda       80.55285       19.44715
+## 2        Alpine       25.31194       74.68806
+## 3        Amador       57.54561       42.45439
+## 4         Butte       56.99558       43.00442
+## 5     Calaveras       58.70787       41.29213
+## 6        Colusa       37.00190       62.99810
+## 7  Contra Costa       71.84363       28.15637
+## 8     Del Norte       32.66254       67.33746
+## 9     El Dorado       42.10794       57.89206
+## 10       Fresno       46.52969       53.47031</code></pre>
 
 
 
