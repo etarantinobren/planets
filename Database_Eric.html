@@ -129,22 +129,56 @@ library(tidyverse)
 library(lubridate)
 library(&quot;RSQLite&quot;)</code></pre>
 <pre class="r"><code># import data and select columns
-gaz_raw &lt;- read_delim(&quot;~/BrenSchool/Computing/CA_Features_20180401/CA_Features_20180401.txt&quot;, &quot;|&quot;, na = c(&quot;Unknown&quot;, &quot;0&quot;, &quot;&quot;))
-gaz &lt;- select(gaz_raw, id = FEATURE_ID, name = FEATURE_NAME, FEATURE_CLASS, STATE_ALPHA, COUNTY_NAME,PRIM_LAT_DEC, PRIM_LONG_DEC, SOURCE_LAT_DEC, SOURCE_LONG_DEC, ELEV_IN_M, MAP_NAME, DATE_CREATED, DATE_EDITED)
-# convert columns to appropriate type
-gaz$DATE_CREATED = as.Date(gaz$DATE_CREATED,&quot;%m/%d/%y&quot;)
-gaz$DATE_EDITED = as.Date(gaz$DATE_EDITED,&quot;%m/%d/%y&quot;)
-# delete rows where primary latitude or longitude are unknown and the feature is not in California
-gaz &lt;- filter(gaz, STATE_ALPHA==&quot;CA&quot; &amp; is.na(PRIM_LAT_DEC)==FALSE &amp; is.na(PRIM_LONG_DEC)==FALSE) 
+getwd()</code></pre>
+<pre><code>## [1] &quot;C:/Users/eric/Documents/BrenSchool/Computing/planets&quot;</code></pre>
+<pre class="r"><code>setwd(&quot;C:/Users/eric/Documents/BrenSchool/Computing/planets&quot;)
+gaz_raw &lt;- read_delim(&quot;CA_Features_20180401.txt&quot;, 
+                      delim = &quot;|&quot;, 
+                      na = c(&quot;Unknown&quot;, &quot;&quot;), 
+                      col_types = cols(.default = col_character()))
 
-#establish database connection to gaz.db
+gaz &lt;- select(gaz_raw, 
+              id = FEATURE_ID, 
+              name = FEATURE_NAME, 
+              FEATURE_CLASS, 
+              STATE_ALPHA, 
+              COUNTY_NAME,
+              PRIM_LAT_DEC, 
+              PRIM_LONG_DEC, 
+              SOURCE_LAT_DEC, 
+              SOURCE_LONG_DEC, 
+              ELEV_IN_M, 
+              MAP_NAME, 
+              DATE_CREATED, 
+              DATE_EDITED)</code></pre>
+<pre class="r"><code># convert columns to appropriate type
+gaz$id                  = parse_integer(gaz$id)
+gaz$PRIM_LAT_DEC        = parse_double(gaz$PRIM_LAT_DEC, na = &quot;0&quot;)
+gaz$PRIM_LONG_DEC       = parse_double(gaz$PRIM_LONG_DEC, na = &quot;0&quot;)
+gaz$SOURCE_LAT_DEC      = parse_double(gaz$SOURCE_LAT_DEC)
+gaz$SOURCE_LONG_DEC     = parse_double(gaz$SOURCE_LONG_DEC)
+gaz$ELEV_IN_M           = parse_integer(gaz$ELEV_IN_M)
+gaz$MAP_NAME            = parse_character(gaz$MAP_NAME)
+gaz$DATE_CREATED        = as.Date(gaz$DATE_CREATED,&quot;%m/%d/%Y&quot;)
+gaz$DATE_EDITED         = as.Date(gaz$DATE_EDITED,&quot;%m/%d/%Y&quot;)
+
+# delete rows where primary latitude or longitude are unknown and the feature is not in California
+gaz &lt;- filter(gaz, STATE_ALPHA==&quot;CA&quot; &amp; 
+                is.na(PRIM_LAT_DEC)==FALSE &amp; 
+                is.na(PRIM_LONG_DEC)==FALSE) </code></pre>
+<pre class="r"><code>#establish database connection to gaz.db
 con &lt;- dbConnect(SQLite(), dbname=&quot;gaz.db&quot;)
+
 #copy gaz tibble to gaz.db
 copy_to(con, gaz, &quot;gaz&quot;,
   temporary = FALSE, overwrite = TRUE
 )</code></pre>
 <pre class="r"><code># create table with most-frequently-occuring feature name
-FeatureName &lt;- dbGetQuery(con, &quot;select Distinct name, count(FEATURE_CLASS) from gaz group by name order by -count(FEATURE_CLASS) limit 10&quot;)
+FeatureName &lt;- dbGetQuery(con, &quot;select Distinct name, 
+                          count(FEATURE_CLASS) from gaz 
+                          group by name 
+                          order by -count(FEATURE_CLASS) 
+                          limit 10&quot;)
 FeatureName</code></pre>
 <pre><code>##                                               name count(FEATURE_CLASS)
 ## 1                                 Church of Christ                  228
@@ -158,7 +192,11 @@ FeatureName</code></pre>
 ## 9                           Church of the Nazarene                   80
 ## 10                       First Presbyterian Church                   75</code></pre>
 <pre class="r"><code># create table with least-frequently-occuring feature class
-FeatureClass &lt;- dbGetQuery(con, &quot;select Distinct FEATURE_CLASS, count(FEATURE_CLASS) from gaz group by FEATURE_CLASS order by count(FEATURE_CLASS) limit 10&quot;)
+FeatureClass &lt;- dbGetQuery(con, &quot;select Distinct FEATURE_CLASS, 
+                           count(FEATURE_CLASS) from gaz 
+                           group by FEATURE_CLASS 
+                           order by count(FEATURE_CLASS) 
+                           limit 10&quot;)
 FeatureClass</code></pre>
 <pre><code>##    FEATURE_CLASS count(FEATURE_CLASS)
 ## 1        Isthmus                    1
@@ -172,24 +210,55 @@ FeatureClass</code></pre>
 ## 9          Plain                   26
 ## 10         Bench                   32</code></pre>
 <pre class="r"><code># create table with average latitude and longitude of each county (approximate center point)
-LatLong &lt;- dbGetQuery(con, &quot;select Distinct COUNTY_NAME, avg(PRIM_LAT_DEC), avg(PRIM_LONG_DEC) from gaz where COUNTY_NAME IS NOT NULL group by COUNTY_NAME limit 10&quot;)
+LatLong &lt;- dbGetQuery(con, &quot;select Distinct COUNTY_NAME, 
+                      (min(PRIM_LAT_DEC)+max(PRIM_LAT_DEC))/2 as Latitude,
+                      (min(PRIM_LONG_DEC)+max(PRIM_LONG_DEC))/2 as Longitude 
+                      from gaz 
+                      where COUNTY_NAME IS NOT NULL 
+                      group by COUNTY_NAME 
+                      limit 10&quot;)
 LatLong</code></pre>
-<pre><code>##     COUNTY_NAME avg(PRIM_LAT_DEC) avg(PRIM_LONG_DEC)
-## 1       Alameda          37.72641          -122.1108
-## 2        Alpine          38.60178          -119.8412
-## 3        Amador          38.43377          -120.6871
-## 4         Butte          39.66555          -121.5645
-## 5     Calaveras          38.17155          -120.5476
-## 6        Colusa          39.19752          -122.3072
-## 7  Contra Costa          37.94380          -122.0663
-## 8     Del Norte          41.76118          -123.9788
-## 9     El Dorado          38.78776          -120.5569
-## 10       Fresno          36.82390          -119.4955</code></pre>
+<pre><code>##     COUNTY_NAME Latitude Longitude
+## 1       Alameda 37.68525 -121.9243
+## 2        Alpine 37.61801 -118.2290
+## 3        Amador 38.35542 -121.0613
+## 4         Butte 39.72335 -121.5716
+## 5     Calaveras 36.46287 -119.8929
+## 6        Colusa 39.16739 -122.2780
+## 7  Contra Costa 37.90659 -121.9944
+## 8     Del Norte 41.69998 -123.9550
+## 9     El Dorado 37.97298 -121.4447
+## 10       Fresno 36.74745 -119.6366</code></pre>
 <pre class="r"><code># create table showing fractions of the total number of features in each county that are natural and man-made
 
 # create tibble of Feature_Class and manmade (m) or not (o)
-gazman &lt;- unique(gaz$FEATURE_CLASS)
-man &lt;- c(&quot;manmade&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;manmade&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;manmade&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;natural&quot;,&quot;manmade&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;natural&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;manmade&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;manmade&quot;,&quot;natural&quot;, &quot;natural&quot;,&quot;manmade&quot;)
+gazman &lt;- unique(sort(gaz$FEATURE_CLASS))
+#gazman
+#[1] &quot;Airport&quot;         &quot;Arch&quot;            &quot;Area&quot;            &quot;Arroyo&quot;          &quot;Bar&quot;             &quot;Basin&quot;          
+# [7] &quot;Bay&quot;             &quot;Beach&quot;           &quot;Bench&quot;           &quot;Bend&quot;            &quot;Bridge&quot;          &quot;Building&quot;       
+#[13] &quot;Canal&quot;           &quot;Cape&quot;            &quot;Cemetery&quot;        &quot;Census&quot;          &quot;Channel&quot;         &quot;Church&quot;         
+#[19] &quot;Civil&quot;           &quot;Cliff&quot;           &quot;Crater&quot;          &quot;Crossing&quot;        &quot;Dam&quot;             &quot;Falls&quot;          
+#[25] &quot;Flat&quot;            &quot;Forest&quot;          &quot;Gap&quot;             &quot;Glacier&quot;         &quot;Gut&quot;             &quot;Harbor&quot;         
+#[31] &quot;Hospital&quot;        &quot;Island&quot;          &quot;Isthmus&quot;         &quot;Lake&quot;            &quot;Lava&quot;            &quot;Levee&quot;          
+#[37] &quot;Locale&quot;          &quot;Military&quot;        &quot;Mine&quot;            &quot;Oilfield&quot;        &quot;Park&quot;            &quot;Pillar&quot;         
+##[43] &quot;Plain&quot;           &quot;Populated Place&quot; &quot;Post Office&quot;     &quot;Range&quot;           &quot;Rapids&quot;          &quot;Reserve&quot;        
+#[49] &quot;Reservoir&quot;       &quot;Ridge&quot;           &quot;School&quot;          &quot;Sea&quot;             &quot;Slope&quot;           &quot;Spring&quot;         
+#[55] &quot;Stream&quot;          &quot;Summit&quot;          &quot;Swamp&quot;           &quot;Tower&quot;           &quot;Trail&quot;           &quot;Tunnel&quot;         
+#[61] &quot;Valley&quot;          &quot;Well&quot;            &quot;Woods&quot;        
+
+
+man &lt;- c(&quot;manmade&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;natural&quot;,         &quot;natural&quot;,       &quot;natural&quot;,
+         &quot;natural&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;natural&quot;,         &quot;manmade&quot;,       &quot;manmade&quot;,
+         &quot;manmade&quot;,     &quot;natural&quot;,        &quot;manmade&quot;,        &quot;manmade&quot;,         &quot;natural&quot;,       &quot;manmade&quot;,
+         &quot;manmade&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;manmade&quot;,         &quot;manmade&quot;,       &quot;natural&quot;,
+         &quot;natural&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;natural&quot;,         &quot;natural&quot;,       &quot;manmade&quot;,
+         &quot;manmade&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;natural&quot;,         &quot;natural&quot;,       &quot;manmade&quot;,
+         &quot;manmade&quot;,     &quot;manmade&quot;,        &quot;manmade&quot;,        &quot;manmade&quot;,         &quot;manmade&quot;,       &quot;natural&quot;,
+         &quot;natural&quot;,     &quot;manmade&quot;,        &quot;manmade&quot;,        &quot;natural&quot;,         &quot;natural&quot;,       &quot;manmade&quot;,
+         &quot;manmade&quot;,     &quot;natural&quot;,        &quot;manmade&quot;,        &quot;natural&quot;,         &quot;natural&quot;,       &quot;natural&quot;,
+         &quot;natural&quot;,     &quot;natural&quot;,        &quot;natural&quot;,        &quot;manmade&quot;,         &quot;manmade&quot;,       &quot;manmade&quot;,
+         &quot;natural&quot;,     &quot;manmade&quot;,        &quot;natural&quot;)
+
 gazman &lt;-data.frame(gazman, man)
 x &lt;- c(&quot;FEATURE_CLASS&quot;, &quot;man&quot;)
 colnames(gazman) &lt;- x
@@ -198,15 +267,16 @@ gazman$man = as.factor(gazman$man)
 #copy tibble gazman to database
 copy_to(con, gazman, &quot;gazman&quot;,
   temporary = FALSE, overwrite = TRUE
-)
-
-#create table featureman by joining gaz and gazman
+)</code></pre>
+<pre class="r"><code>#create table featureman by joining gaz and gazman
 featureman &lt;- dbGetQuery(con, &quot;select * FROM gaz Join gazman on gaz.FEATURE_CLASS=gazman.FEATURE_CLASS&quot;)
 #View(featureman)
 
 #copy featureman to gaz.db
-copy_to(con, featureman, &quot;featureman&quot;,
-  temporary = FALSE, overwrite = TRUE
+copy_to(con, featureman, 
+        &quot;featureman&quot;,
+        temporary = FALSE, 
+        overwrite = TRUE
 )
 
 # create table showing fractions of the total number of features in each county that are natural and man-made
@@ -214,21 +284,23 @@ FeatureTot &lt;- dbGetQuery(con, &quot;select Distinct COUNTY_NAME,
 cast(sum(case when man = 'manmade' then 1 else 0 end) *100 as real)  / count(*) as PercentManmade,  
 cast(sum(case when man = 'natural' then 1 else 0 end) *100 as real) / count(*) as PercentNatural 
 from featureman 
-where COUNTY_NAME IS NOT NULL 
+where COUNTY_NAME IS NOT NULL
 group by COUNTY_NAME
 limit 10&quot;)
 FeatureTot</code></pre>
 <pre><code>##     COUNTY_NAME PercentManmade PercentNatural
-## 1       Alameda       80.55285       19.44715
-## 2        Alpine       25.31194       74.68806
-## 3        Amador       57.54561       42.45439
-## 4         Butte       56.99558       43.00442
-## 5     Calaveras       58.70787       41.29213
-## 6        Colusa       37.00190       62.99810
-## 7  Contra Costa       71.84363       28.15637
-## 8     Del Norte       32.66254       67.33746
-## 9     El Dorado       42.10794       57.89206
-## 10       Fresno       46.52969       53.47031</code></pre>
+## 1       Alameda       91.80488       8.195122
+## 2        Alpine       38.32442      61.675579
+## 3        Amador       72.30514      27.694859
+## 4         Butte       64.72754      35.272459
+## 5     Calaveras       67.88390      32.116105
+## 6        Colusa       48.19734      51.802657
+## 7  Contra Costa       83.72953      16.270470
+## 8     Del Norte       44.73684      55.263158
+## 9     El Dorado       57.58656      42.413442
+## 10       Fresno       59.23327      40.766725</code></pre>
+<pre class="r"><code>#disconnect from database
+dbDisconnect(con)</code></pre>
 
 
 
