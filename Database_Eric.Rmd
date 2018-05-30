@@ -20,36 +20,93 @@ library("RSQLite")
 ```
 
 
-```{r, importtidy, warning=FALSE, message=FALSE}
+```{r, import, warning=FALSE, message=FALSE}
 # import data and select columns
-gaz_raw <- read_delim("~/BrenSchool/Computing/CA_Features_20180401/CA_Features_20180401.txt", "|", na = c("Unknown", "0", ""))
-gaz <- select(gaz_raw, id = FEATURE_ID, name = FEATURE_NAME, FEATURE_CLASS, STATE_ALPHA, COUNTY_NAME,PRIM_LAT_DEC, PRIM_LONG_DEC, SOURCE_LAT_DEC, SOURCE_LONG_DEC, ELEV_IN_M, MAP_NAME, DATE_CREATED, DATE_EDITED)
-# convert columns to appropriate type
-gaz$DATE_CREATED = as.Date(gaz$DATE_CREATED,"%m/%d/%y")
-gaz$DATE_EDITED = as.Date(gaz$DATE_EDITED,"%m/%d/%y")
-# delete rows where primary latitude or longitude are unknown and the feature is not in California
-gaz <- filter(gaz, STATE_ALPHA=="CA" & is.na(PRIM_LAT_DEC)==FALSE & is.na(PRIM_LONG_DEC)==FALSE) 
+getwd()
+setwd("C:/Users/eric/Documents/BrenSchool/Computing/planets")
+gaz_raw <- read_delim("CA_Features_20180401.txt", 
+                      delim = "|", 
+                      na = c("Unknown", ""), 
+                      col_types = cols(.default = col_character()))
 
+gaz <- select(gaz_raw, 
+              id = FEATURE_ID, 
+              name = FEATURE_NAME, 
+              FEATURE_CLASS, 
+              STATE_ALPHA, 
+              COUNTY_NAME,
+              PRIM_LAT_DEC, 
+              PRIM_LONG_DEC, 
+              SOURCE_LAT_DEC, 
+              SOURCE_LONG_DEC, 
+              ELEV_IN_M, 
+              MAP_NAME, 
+              DATE_CREATED, 
+              DATE_EDITED)
+
+```
+
+```{r, datatidy, warning=FALSE, message=FALSE}
+# convert columns to appropriate type
+gaz$id                  = parse_integer(gaz$id)
+gaz$PRIM_LAT_DEC        = parse_double(gaz$PRIM_LAT_DEC, na = "0")
+gaz$PRIM_LONG_DEC       = parse_double(gaz$PRIM_LONG_DEC, na = "0")
+gaz$SOURCE_LAT_DEC      = parse_double(gaz$SOURCE_LAT_DEC)
+gaz$SOURCE_LONG_DEC     = parse_double(gaz$SOURCE_LONG_DEC)
+gaz$ELEV_IN_M           = parse_integer(gaz$ELEV_IN_M)
+gaz$MAP_NAME            = parse_character(gaz$MAP_NAME)
+gaz$DATE_CREATED        = as.Date(gaz$DATE_CREATED,"%m/%d/%Y")
+gaz$DATE_EDITED         = as.Date(gaz$DATE_EDITED,"%m/%d/%Y")
+
+# delete rows where primary latitude or longitude are unknown and the feature is not in California
+gaz <- filter(gaz, STATE_ALPHA=="CA" & 
+                is.na(PRIM_LAT_DEC)==FALSE & 
+                is.na(PRIM_LONG_DEC)==FALSE) 
+
+```
+
+```{r, warning=FALSE, message=FALSE}
 #establish database connection to gaz.db
 con <- dbConnect(SQLite(), dbname="gaz.db")
+
 #copy gaz tibble to gaz.db
 copy_to(con, gaz, "gaz",
   temporary = FALSE, overwrite = TRUE
 )
+```
+
+
+```{r}
+# create table with most-frequently-occuring feature name
+FeatureName <- dbGetQuery(con, "select Distinct name, 
+                          count(FEATURE_CLASS) from gaz 
+                          group by name 
+                          order by -count(FEATURE_CLASS) 
+                          limit 10")
+FeatureName
 
 ```
 
 ```{r}
-# create table with most-frequently-occuring feature name
-FeatureName <- dbGetQuery(con, "select Distinct name, count(FEATURE_CLASS) from gaz group by name order by -count(FEATURE_CLASS) limit 10")
-FeatureName
-
 # create table with least-frequently-occuring feature class
-FeatureClass <- dbGetQuery(con, "select Distinct FEATURE_CLASS, count(FEATURE_CLASS) from gaz group by FEATURE_CLASS order by count(FEATURE_CLASS) limit 10")
+FeatureClass <- dbGetQuery(con, "select Distinct FEATURE_CLASS, 
+                           count(FEATURE_CLASS) from gaz 
+                           group by FEATURE_CLASS 
+                           order by count(FEATURE_CLASS) 
+                           limit 10")
 FeatureClass
 
+```
+
+```{r}
 # create table with average latitude and longitude of each county (approximate center point)
-LatLong <- dbGetQuery(con, "select Distinct COUNTY_NAME, avg(PRIM_LAT_DEC), avg(PRIM_LONG_DEC) from gaz where COUNTY_NAME IS NOT NULL group by COUNTY_NAME limit 10")
+LatLong <- dbGetQuery(con, "select Distinct COUNTY_NAME, 
+                      (min(PRIM_LAT_DEC)+max(PRIM_LAT_DEC))/2 as Latitude,
+                      (min(PRIM_LONG_DEC)+max(PRIM_LONG_DEC))/2 as Longitude 
+                      from gaz 
+                      where COUNTY_NAME IS NOT NULL 
+                      group by COUNTY_NAME 
+                      limit 10")
 LatLong
 ```
 
@@ -58,8 +115,33 @@ LatLong
 # create table showing fractions of the total number of features in each county that are natural and man-made
 
 # create tibble of Feature_Class and manmade (m) or not (o)
-gazman <- unique(gaz$FEATURE_CLASS)
-man <- c("manmade", "natural","natural", "manmade","natural", "natural","manmade", "manmade","manmade", "natural","natural", "manmade","natural", "natural","natural", "manmade","manmade", "manmade","manmade", "natural","natural", "natural","natural", "manmade","natural", "natural","manmade", "manmade","natural", "natural","natural", "manmade","natural", "manmade","natural", "natural","natural", "natural","natural", "manmade","manmade", "natural","manmade", "natural","natural", "natural","natural", "manmade","natural", "manmade","manmade", "natural","natural", "manmade","manmade", "manmade","natural", "manmade","natural", "manmade","natural", "natural","manmade")
+gazman <- unique(sort(gaz$FEATURE_CLASS))
+#gazman
+#[1] "Airport"         "Arch"            "Area"            "Arroyo"          "Bar"             "Basin"          
+# [7] "Bay"             "Beach"           "Bench"           "Bend"            "Bridge"          "Building"       
+#[13] "Canal"           "Cape"            "Cemetery"        "Census"          "Channel"         "Church"         
+#[19] "Civil"           "Cliff"           "Crater"          "Crossing"        "Dam"             "Falls"          
+#[25] "Flat"            "Forest"          "Gap"             "Glacier"         "Gut"             "Harbor"         
+#[31] "Hospital"        "Island"          "Isthmus"         "Lake"            "Lava"            "Levee"          
+#[37] "Locale"          "Military"        "Mine"            "Oilfield"        "Park"            "Pillar"         
+##[43] "Plain"           "Populated Place" "Post Office"     "Range"           "Rapids"          "Reserve"        
+#[49] "Reservoir"       "Ridge"           "School"          "Sea"             "Slope"           "Spring"         
+#[55] "Stream"          "Summit"          "Swamp"           "Tower"           "Trail"           "Tunnel"         
+#[61] "Valley"          "Well"            "Woods"        
+
+
+man <- c("manmade",     "natural",        "natural",        "natural",         "natural",       "natural",
+         "natural",     "natural",        "natural",        "natural",         "manmade",       "manmade",
+         "manmade",     "natural",        "manmade",        "manmade",         "natural",       "manmade",
+         "manmade",     "natural",        "natural",        "manmade",         "manmade",       "natural",
+         "natural",     "natural",        "natural",        "natural",         "natural",       "manmade",
+         "manmade",     "natural",        "natural",        "natural",         "natural",       "manmade",
+         "manmade",     "manmade",        "manmade",        "manmade",         "manmade",       "natural",
+         "natural",     "manmade",        "manmade",        "natural",         "natural",       "manmade",
+         "manmade",     "natural",        "manmade",        "natural",         "natural",       "natural",
+         "natural",     "natural",        "natural",        "manmade",         "manmade",       "manmade",
+         "natural",     "manmade",        "natural")
+
 gazman <-data.frame(gazman, man)
 x <- c("FEATURE_CLASS", "man")
 colnames(gazman) <- x
@@ -69,14 +151,19 @@ gazman$man = as.factor(gazman$man)
 copy_to(con, gazman, "gazman",
   temporary = FALSE, overwrite = TRUE
 )
+```
 
+
+```{r}
 #create table featureman by joining gaz and gazman
 featureman <- dbGetQuery(con, "select * FROM gaz Join gazman on gaz.FEATURE_CLASS=gazman.FEATURE_CLASS")
 #View(featureman)
 
 #copy featureman to gaz.db
-copy_to(con, featureman, "featureman",
-  temporary = FALSE, overwrite = TRUE
+copy_to(con, featureman, 
+        "featureman",
+        temporary = FALSE, 
+        overwrite = TRUE
 )
 
 # create table showing fractions of the total number of features in each county that are natural and man-made
@@ -84,11 +171,12 @@ FeatureTot <- dbGetQuery(con, "select Distinct COUNTY_NAME,
 cast(sum(case when man = 'manmade' then 1 else 0 end) *100 as real)  / count(*) as PercentManmade,  
 cast(sum(case when man = 'natural' then 1 else 0 end) *100 as real) / count(*) as PercentNatural 
 from featureman 
-where COUNTY_NAME IS NOT NULL 
+where COUNTY_NAME IS NOT NULL
 group by COUNTY_NAME
 limit 10")
 FeatureTot
 
-
+#disconnect from database
+dbDisconnect(con)
 ```
 
