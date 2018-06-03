@@ -1,7 +1,7 @@
 ---
 title: "Database"
 author: "Eric Tarantino"
-date: "May 18, 2018"
+date: "June 2, 2018"
 output:
   html_document: default
   word_document: default
@@ -14,7 +14,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, libraries, warning=FALSE, message=FALSE}
 # load libraries
 library(tidyverse)
-library(lubridate)
 library("RSQLite")
 
 ```
@@ -22,8 +21,6 @@ library("RSQLite")
 
 ```{r, import, warning=FALSE, message=FALSE}
 # import data and select columns
-getwd()
-setwd("C:/Users/eric/Documents/BrenSchool/Computing/planets")
 gaz_raw <- read_delim("CA_Features_20180401.txt", 
                       delim = "|", 
                       na = c("Unknown", ""), 
