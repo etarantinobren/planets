@@ -1,0 +1,96 @@
+---
+title: "Functions"
+author: "Eric Tarantino"
+date: "June 6, 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries, warning=FALSE, message=FALSE}
+# load libraries
+library(tidyverse)
+library(dplyr)
+library(devtools)
+library(roxygen2)
+library(testthat)
+
+#used to load everything in package
+#load_all()
+```
+
+```{r, createfishprices, warning=FALSE, message=FALSE}
+# create table of fish and prices
+fish <- c("Bass", "Shark", "Halibut", "Salmon")
+price <- c(10, 5, 20, 25)
+fish1 <- data.frame(fish,price)
+fish1
+
+#write.csv(fish1, '/Users/eric/Desktop/fish1.csv')
+#use_data(fish1, pkg="fishHW3")
+```
+
+```{r, createcatch, warning=FALSE, message=FALSE}
+# create table of fish, location, and number caught
+
+locations = c("SantaBarbara", "Monterey", "SanDiego", "Miami", "Seattle")
+
+# generate a dataframe to store results
+catch= as.data.frame(matrix(nrow=length(fish), ncol=length(locations)))
+
+# for loop to populate
+ for (i in 1:length(fish)) {
+         for (j in 1:length(locations)) {
+         catch[i,j]= sample(1:25,1, replace=TRUE)
+         }
+ }
+
+ 
+#create table
+colnames(catch)=locations
+rownames(catch)= fish
+catch
+
+#write.csv(catch, '/Users/eric/Desktop/catch.csv')
+#use_data(catch, pkg="fishHW3")
+```
+
+
+```{r, runfinalfish, warning=FALSE, message=FALSE}
+#Run finalfish.R
+
+#It is possible to import data in package into global environment 
+#data(fish1)
+#data(catch)
+
+#need locations for finalfish to work
+locations <- colnames(catch)
+finalfish1 <-finalfish(fish1,catch,showplot=TRUE)
+finalfish1
+
+```
+
+
+```{r, runbjoor, warning=FALSE, message=FALSE}
+#Test bjoor.R with parameters from Experiment A of Table 2 in Bjoornsson et al., 2007
+
+bjoor1 <- bjoor(-.4970, .1656, .08588, -.004266)
+bjoor1
+
+```
+
+```{r, testfunctions, warning=FALSE, message=FALSE}
+#Test functions
+#Having difficulty runing test_file(tests/finalfishtest.R", reporter="tap")
+#Not recognizing objects specified in finalfishtest.R unless run directly in console
+#test_file() works if ones 2-23 of finalfishtest.R run in console
+#test_file("tests/bjoortest.R", reporter="tap") works regardless
+
+test_file("tests/finalfishtest.R", reporter="tap")
+test_file("tests/bjoortest.R", reporter="tap")
+
+```
